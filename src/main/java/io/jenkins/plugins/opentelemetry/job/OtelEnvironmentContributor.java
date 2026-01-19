@@ -12,7 +12,7 @@ import hudson.model.EnvironmentContributor;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import javax.inject.Inject;
-
+import io.opentelemetry.api.trace.Span;
 /**
  * Inject OpenTelemetry environment variables in shell steps: {@code TRACEPARENT}, {@code OTEL_EXPORTER_OTLP_ENDPOINT}...
  */
@@ -23,11 +23,15 @@ public class OtelEnvironmentContributor extends EnvironmentContributor {
 
     private OtelTraceService otelTraceService;
 
-    @Override
-    public void buildEnvironmentFor(@NonNull Run run, @NonNull EnvVars envs, @NonNull TaskListener listener) {
-        otelEnvironmentContributorService.addEnvironmentVariables(run, envs, otelTraceService.getSpan(run));
+  @Override
+public void buildEnvironmentFor(@NonNull Run run, @NonNull EnvVars envs, @NonNull TaskListener listener) {
+    Span span = Span.current();
+    // If there is no active span on the thread, it falls back to the run's root span
+    if (!span.getSpanContext().isValid()) {
+        span = otelTraceService.getSpan(run);
     }
-
+    otelEnvironmentContributorService.addEnvironmentVariables(run, envs, span);
+}
     @Inject
     public void setOtelTraceService(OtelTraceService otelTraceService) {
         this.otelTraceService = otelTraceService;
